@@ -58,6 +58,7 @@ export function RegisterStep4Screen({ navigation }: Props) {
       } catch {
         // Provider profile update is best-effort
       }
+      useAuthStore.getState().setNeedsOnboarding(false);
     } catch {
       Alert.alert('Erro', 'Não foi possível concluir o cadastro. Tente novamente.');
     } finally {

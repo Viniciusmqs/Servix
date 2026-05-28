@@ -28,8 +28,8 @@ public class ProviderService {
     private final UserRepository userRepository;
 
     @Transactional(readOnly = true)
-    public Page<ProviderResponse> listAll(String category, String city, Pageable pageable) {
-        return providerRepository.findWithFilters(category, city, pageable).map(ProviderResponse::from);
+    public Page<ProviderResponse> listAll(String category, String city, String query, Pageable pageable) {
+        return providerRepository.findWithFilters(category, city, query, pageable).map(ProviderResponse::from);
     }
 
     @Transactional(readOnly = true)

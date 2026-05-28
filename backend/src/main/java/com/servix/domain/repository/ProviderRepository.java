@@ -18,14 +18,31 @@ public interface ProviderRepository extends JpaRepository<Provider, UUID> {
 
     boolean existsByUser(User user);
 
-    @Query("""
-            SELECT p FROM Provider p
-            WHERE (:category IS NULL OR p.category = :category)
-              AND (:city IS NULL OR LOWER(p.city) LIKE LOWER(CONCAT('%', :city, '%')))
-            """)
+    @Query(value = """
+            SELECT p.* FROM providers p
+            JOIN users u ON u.id = p.user_id
+            WHERE (:category IS NULL OR p.category ILIKE CONCAT('%', CAST(:category AS TEXT), '%'))
+              AND (:city IS NULL OR p.city ILIKE CONCAT('%', CAST(:city AS TEXT), '%'))
+              AND (:query IS NULL OR
+                   p.category ILIKE CONCAT('%', CAST(:query AS TEXT), '%') OR
+                   u.name ILIKE CONCAT('%', CAST(:query AS TEXT), '%') OR
+                   p.description ILIKE CONCAT('%', CAST(:query AS TEXT), '%'))
+            """,
+            countQuery = """
+            SELECT COUNT(*) FROM providers p
+            JOIN users u ON u.id = p.user_id
+            WHERE (:category IS NULL OR p.category ILIKE CONCAT('%', CAST(:category AS TEXT), '%'))
+              AND (:city IS NULL OR p.city ILIKE CONCAT('%', CAST(:city AS TEXT), '%'))
+              AND (:query IS NULL OR
+                   p.category ILIKE CONCAT('%', CAST(:query AS TEXT), '%') OR
+                   u.name ILIKE CONCAT('%', CAST(:query AS TEXT), '%') OR
+                   p.description ILIKE CONCAT('%', CAST(:query AS TEXT), '%'))
+            """,
+            nativeQuery = true)
     Page<Provider> findWithFilters(
             @Param("category") String category,
             @Param("city") String city,
+            @Param("query") String query,
             Pageable pageable
     );
 

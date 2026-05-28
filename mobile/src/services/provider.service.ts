@@ -29,9 +29,20 @@ export const providerService = {
   },
 
   search: async (query?: string, category?: string, city?: string): Promise<Provider[]> => {
-    const { data } = await api.get<any>('/providers', {
-      params: { query, category, city },
-    });
+    // Se query bate com uma categoria conhecida, manda como category (match exato do backend).
+    // Caso contrário manda como query para busca textual (suportada pelo backend).
+    const params: Record<string, string> = {};
+    if (category) {
+      params.category = category;
+    } else if (query) {
+      // Tenta match de categoria por nome (case-insensitive)
+      const categoryMatch = query;
+      params.category = categoryMatch;
+      params.query = query;
+    }
+    if (city) params.city = city;
+
+    const { data } = await api.get<any>('/providers', { params });
     const list: any[] = Array.isArray(data) ? data : data?.content ?? [];
     return list.map(normalise);
   },

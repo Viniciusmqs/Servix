@@ -10,6 +10,7 @@ const Stack = createNativeStackNavigator();
 export function AppNavigator() {
   const token = useAuthStore((s) => s.token);
   const role = useAuthStore((s) => s.user?.role);
+  const needsOnboarding = useAuthStore((s) => s.needsOnboarding);
 
   // Derive boolean explicitly to avoid string/boolean coercion from persisted storage
   const isAuthenticated = Boolean(token);
@@ -17,7 +18,7 @@ export function AppNavigator() {
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      {!isAuthenticated ? (
+      {!isAuthenticated || needsOnboarding ? (
         <Stack.Screen name="Auth" component={AuthNavigator} />
       ) : isProvider ? (
         <Stack.Screen name="Provider" component={ProviderNavigator} />

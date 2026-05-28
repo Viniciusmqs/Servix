@@ -64,6 +64,7 @@ export function PermissionsScreen({ navigation, route }: Props) {
         setLoading(true);
         const updatedUser = await authService.setRole('CLIENT');
         if (token) setAuth(updatedUser, token);
+        useAuthStore.getState().setNeedsOnboarding(false);
       } catch {
         Alert.alert('Erro', 'Não foi possível definir seu perfil. Tente novamente.');
       } finally {

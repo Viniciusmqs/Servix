@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -48,6 +48,14 @@ export function SearchScreen({ route }: Props) {
       setLoading(false);
     }
   };
+
+  // Auto-search when navigated with a category param
+  useEffect(() => {
+    if (category && category.length >= 2) {
+      handleSearch(category);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>

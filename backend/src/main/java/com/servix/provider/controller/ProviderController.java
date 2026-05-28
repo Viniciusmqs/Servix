@@ -30,13 +30,14 @@ public class ProviderController {
     private final ProviderService providerService;
 
     @GetMapping
-    @Operation(summary = "Listar providers com filtros opcionais de categoria e cidade")
+    @Operation(summary = "Listar providers com filtros opcionais de categoria, cidade e busca textual")
     public Page<ProviderResponse> listAll(
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String city,
+            @RequestParam(required = false) String query,
             @PageableDefault(size = 20) Pageable pageable
     ) {
-        return providerService.listAll(category, city, pageable);
+        return providerService.listAll(category, city, query, pageable);
     }
 
     @GetMapping("/featured")

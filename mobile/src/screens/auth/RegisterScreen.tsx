@@ -44,7 +44,7 @@ export function RegisterScreen({ navigation }: Props) {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [loading, setLoading] = useState(false);
-  const setAuth = useAuthStore((s) => s.setAuth);
+  const { setAuth } = useAuthStore();
 
   const strength = getPasswordStrength(password);
   const strengthColor = getStrengthColor(strength);
@@ -61,6 +61,7 @@ export function RegisterScreen({ navigation }: Props) {
     try {
       setLoading(true);
       const { user, token } = await authService.register(name, email, phone, password);
+      useAuthStore.getState().setNeedsOnboarding(true);
       setAuth(user, token);
       navigation.navigate('ChooseRole');
     } catch {

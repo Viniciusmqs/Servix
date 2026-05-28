@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash  
 set -e
 
 BASE="http://localhost:8080/api"

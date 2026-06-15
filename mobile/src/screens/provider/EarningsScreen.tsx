@@ -1,71 +1,177 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
+  RefreshControl,
+  Alert,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
+import { requestService } from '../../services/request.service';
+import { ServiceRequest } from '../../types/models';
 
-type Transaction = { id: string; desc: string; value: number; date: string; type: 'credit' | 'debit' };
+type Transaction = {
+  id: string;
+  desc: string;
+  client: string;
+  value: number;
+  date: string;
+  type: 'credit';
+};
+
+function formatBRL(value: number) {
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function startOfWeek(): Date {
+  const d = new Date();
+  d.setDate(d.getDate() - d.getDay());
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function startOfMonth(): Date {
+  const d = new Date();
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
 
 export function EarningsScreen() {
-  const [transactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [total, setTotal] = useState(0);
+  const [thisWeek, setThisWeek] = useState(0);
+  const [thisMonth, setThisMonth] = useState(0);
+  const [totalServices, setTotalServices] = useState(0);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
 
-  const STATS = [
-    { label: 'Esta semana', value: 'R$ 0,00' },
-    { label: 'Este mês', value: 'R$ 0,00' },
-    { label: 'Total serviços', value: '0' },
-  ];
+  const loadEarnings = async () => {
+    const received = await requestService.getReceivedRequests();
+    const completed = received.filter((r) => r.status === 'COMPLETED');
+
+    const weekStart = startOfWeek();
+    const monthStart = startOfMonth();
+
+    let totalVal = 0;
+    let weekVal = 0;
+    let monthVal = 0;
+    const txns: Transaction[] = [];
+
+    completed.forEach((r) => {
+      const value = r.budgetMax ?? r.budgetMin ?? 0;
+      const date = new Date(r.updatedAt ?? r.createdAt);
+      totalVal += value;
+      if (date >= weekStart) weekVal += value;
+      if (date >= monthStart) monthVal += value;
+      txns.push({
+        id: r.id,
+        desc: r.title,
+        client: r.clientName ?? 'Cliente',
+        value,
+        date: date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }),
+        type: 'credit',
+      });
+    });
+
+    txns.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    setTotal(totalVal);
+    setThisWeek(weekVal);
+    setThisMonth(monthVal);
+    setTotalServices(completed.length);
+    setTransactions(txns);
+  };
+
+  useEffect(() => {
+    loadEarnings().catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadEarnings().catch(() => {});
+    setRefreshing(false);
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <Text style={styles.pageTitle}>Ganhos</Text>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator color={Colors.secondary} size="large" />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <Text style={styles.pageTitle}>Ganhos</Text>
+      <ScrollView
+        style={styles.container}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={Colors.secondary} />}
+      >
+        <Text style={styles.pageTitle}>Ganhos</Text>
 
-      <View style={styles.balanceCard}>
-        <Text style={styles.balanceLabel}>Saldo disponível</Text>
-        <Text style={styles.balanceValue}>R$ 0,00</Text>
-        <TouchableOpacity style={styles.withdrawBtn}>
-          <Text style={styles.withdrawBtnText}>Sacar</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.statsGrid}>
-        {STATS.map((s) => (
-          <View key={s.label} style={styles.statCard}>
-            <Text style={styles.statValue}>{s.value}</Text>
-            <Text style={styles.statLabel}>{s.label}</Text>
-          </View>
-        ))}
-      </View>
-
-      <Text style={styles.sectionTitle}>Transações recentes</Text>
-      {transactions.length === 0 && (
-        <View style={styles.emptyTransactions}>
-          <Text style={styles.emptyTransactionsText}>Nenhuma transação registrada</Text>
+        <View style={styles.balanceCard}>
+          <Text style={styles.balanceLabel}>Total acumulado</Text>
+          <Text style={styles.balanceValue}>{formatBRL(total)}</Text>
+          <TouchableOpacity
+            style={styles.withdrawBtn}
+            onPress={() => Alert.alert('Saque', 'Funcionalidade de saque em breve.\n\nFale com o suporte: suporte@servix.com.br')}
+          >
+            <Ionicons name="arrow-down-circle-outline" size={18} color={Colors.white} />
+            <Text style={styles.withdrawBtnText}>Solicitar saque</Text>
+          </TouchableOpacity>
         </View>
-      )}
-      <View style={styles.transactionsList}>
-        {transactions.map((t) => (
-          <View key={t.id} style={styles.transactionItem}>
-            <View style={[styles.transactionIcon, t.type === 'credit' ? styles.creditIcon : styles.debitIcon]}>
-              <Text style={styles.transactionIconText}>{t.type === 'credit' ? '↑' : '↓'}</Text>
-            </View>
-            <View style={styles.transactionInfo}>
-              <Text style={styles.transactionDesc}>{t.desc}</Text>
-              <Text style={styles.transactionDate}>{t.date}</Text>
-            </View>
-            <Text style={[styles.transactionValue, t.type === 'credit' ? styles.creditValue : styles.debitValue]}>
-              {t.type === 'credit' ? '+' : '-'} R$ {t.value.toFixed(2)}
+
+        <View style={styles.statsGrid}>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>{formatBRL(thisWeek)}</Text>
+            <Text style={styles.statLabel}>Esta semana</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>{formatBRL(thisMonth)}</Text>
+            <Text style={styles.statLabel}>Este mês</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={[styles.statValue, { color: Colors.warning }]}>{totalServices}</Text>
+            <Text style={styles.statLabel}>Serviços</Text>
+          </View>
+        </View>
+
+        <Text style={styles.sectionTitle}>Serviços concluídos</Text>
+
+        {transactions.length === 0 ? (
+          <View style={styles.emptyTransactions}>
+            <Ionicons name="wallet-outline" size={48} color={Colors.border} />
+            <Text style={styles.emptyTransactionsText}>Nenhum serviço concluído ainda</Text>
+            <Text style={styles.emptyTransactionsSub}>
+              Aceite pedidos para começar a ganhar
             </Text>
           </View>
-        ))}
-      </View>
-      <View style={{ height: 24 }} />
-    </ScrollView>
+        ) : (
+          <View style={styles.transactionsList}>
+            {transactions.map((t) => (
+              <View key={t.id} style={styles.transactionItem}>
+                <View style={styles.creditIcon}>
+                  <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
+                </View>
+                <View style={styles.transactionInfo}>
+                  <Text style={styles.transactionDesc}>{t.desc}</Text>
+                  <Text style={styles.transactionClient}>{t.client}</Text>
+                  <Text style={styles.transactionDate}>{t.date}</Text>
+                </View>
+                <Text style={styles.creditValue}>{formatBRL(t.value)}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+        <View style={{ height: 24 }} />
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -73,6 +179,7 @@ export function EarningsScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: Colors.background },
   container: { flex: 1 },
+  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   pageTitle: {
     fontSize: 20,
     fontWeight: '700',
@@ -94,10 +201,13 @@ const styles = StyleSheet.create({
   balanceLabel: { fontSize: 14, color: Colors.textMuted, marginBottom: 8 },
   balanceValue: { fontSize: 36, fontWeight: '800', color: Colors.primary, marginBottom: 20 },
   withdrawBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: Colors.secondary,
-    paddingHorizontal: 32,
+    paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 12,
+    gap: 8,
   },
   withdrawBtnText: { color: Colors.white, fontSize: 15, fontWeight: '600' },
   statsGrid: {
@@ -115,7 +225,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  statValue: { fontSize: 14, fontWeight: '700', color: Colors.secondary, textAlign: 'center' },
+  statValue: { fontSize: 13, fontWeight: '700', color: Colors.secondary, textAlign: 'center' },
   statLabel: { fontSize: 11, color: Colors.textMuted, marginTop: 4, textAlign: 'center' },
   sectionTitle: {
     fontSize: 17,
@@ -135,22 +245,20 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     gap: 14,
   },
-  transactionIcon: {
+  creditIcon: {
     width: 40,
     height: 40,
     borderRadius: 20,
+    backgroundColor: Colors.success + '20',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  creditIcon: { backgroundColor: 'rgba(34,197,94,0.15)' },
-  debitIcon: { backgroundColor: 'rgba(239,68,68,0.15)' },
-  transactionIconText: { fontSize: 18, fontWeight: '700', color: Colors.white },
   transactionInfo: { flex: 1 },
-  transactionDesc: { fontSize: 13, color: Colors.textSecondary },
+  transactionDesc: { fontSize: 13, color: Colors.white, fontWeight: '600' },
+  transactionClient: { fontSize: 12, color: Colors.textMuted, marginTop: 1 },
   transactionDate: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
-  transactionValue: { fontSize: 14, fontWeight: '700' },
-  creditValue: { color: Colors.success },
-  debitValue: { color: Colors.error },
-  emptyTransactions: { paddingVertical: 24, alignItems: 'center' },
-  emptyTransactionsText: { color: Colors.textMuted, fontSize: 14 },
+  creditValue: { fontSize: 14, fontWeight: '700', color: Colors.success },
+  emptyTransactions: { paddingVertical: 40, alignItems: 'center', gap: 8 },
+  emptyTransactionsText: { color: Colors.textMuted, fontSize: 14, fontWeight: '600' },
+  emptyTransactionsSub: { color: Colors.textMuted, fontSize: 12, textAlign: 'center', paddingHorizontal: 40 },
 });

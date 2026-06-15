@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  RefreshControl,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -16,31 +17,92 @@ import { requestService } from '../../services/request.service';
 import { ServiceRequest } from '../../types/models';
 import { ProviderRootParamList } from '../../navigation/ProviderNavigator';
 
+function formatBRL(value: number) {
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
 export function ProviderHomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<ProviderRootParamList>>();
   const user = useAuthStore((s) => s.user);
-  const [requests, setRequests] = useState<ServiceRequest[]>([]);
+  const [openRequests, setOpenRequests] = useState<ServiceRequest[]>([]);
+  const [received, setReceived] = useState<ServiceRequest[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+
   const firstName = user?.name?.split(' ')[0] ?? 'você';
 
-  useEffect(() => {
-    requestService.getReceivedRequests().then(setRequests).catch(() => {});
+  const loadData = useCallback(async () => {
+    const [open, my] = await Promise.allSettled([
+      requestService.getOpenRequests(),
+      requestService.getReceivedRequests(),
+    ]);
+    if (open.status === 'fulfilled') setOpenRequests(open.value);
+    if (my.status === 'fulfilled') setReceived(my.value);
   }, []);
 
+  useEffect(() => {
+    loadData().catch(() => {});
+  }, [loadData]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadData().catch(() => {});
+    setRefreshing(false);
+  };
+
+  const completed = received.filter((r) => r.status === 'COMPLETED');
+  const active = received.filter((r) => ['ACCEPTED', 'IN_PROGRESS'].includes(r.status));
+  const totalEarnings = completed.reduce((sum, r) => sum + (r.budgetMax ?? r.budgetMin ?? 0), 0);
+
   const STATS = [
-    { label: 'Solicitações', value: requests.length.toString(), color: Colors.primary },
-    { label: 'Agendados', value: '0', color: Colors.secondary },
-    { label: 'Ganhos', value: 'R$\n0,00', color: Colors.warning },
+    { label: 'Novas', value: openRequests.length.toString(), color: Colors.primary },
+    { label: 'Ativas', value: active.length.toString(), color: Colors.secondary },
+    { label: 'Ganhos', value: formatBRL(totalEarnings), color: Colors.warning },
   ];
 
-  const TODAY_SCHEDULE: { time: string; client: string; service: string }[] = [];
+  const todayRequests = active.filter((r) => {
+    if (!r.scheduledAt) return false;
+    const d = new Date(r.scheduledAt);
+    const now = new Date();
+    return d.toDateString() === now.toDateString();
+  });
+
+  const handleQuickAccept = (req: ServiceRequest) => {
+    Alert.alert(
+      'Aceitar pedido',
+      `Deseja aceitar "${req.title}" de ${req.clientName ?? 'cliente'}?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Aceitar',
+          onPress: async () => {
+            try {
+              await requestService.accept(req.id);
+              await loadData();
+              Alert.alert('Aceito!', 'Pedido aceito com sucesso.');
+            } catch {
+              Alert.alert('Erro', 'Não foi possível aceitar o pedido.');
+            }
+          },
+        },
+      ]
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.container}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={Colors.secondary} />}
+      >
         <View style={styles.header}>
           <View>
             <Text style={styles.greeting}>Olá, {firstName} 🔧</Text>
-            <Text style={styles.headerSub}>Sua agenda de hoje</Text>
+            <Text style={styles.headerSub}>
+              {todayRequests.length > 0
+                ? `${todayRequests.length} serviço(s) hoje`
+                : 'Agenda de hoje'}
+            </Text>
           </View>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{firstName?.[0]?.toUpperCase() ?? '?'}</Text>
@@ -57,76 +119,86 @@ export function ProviderHomeScreen() {
         </View>
 
         <Text style={styles.sectionTitle}>Novas solicitações</Text>
-        {requests.length === 0 && (
+        {openRequests.length === 0 ? (
           <View style={styles.emptyRequests}>
             <Text style={styles.emptyText}>Nenhuma nova solicitação</Text>
           </View>
+        ) : (
+          openRequests.slice(0, 5).map((req) => (
+            <View key={req.id} style={styles.requestCard}>
+              <View style={styles.requestTop}>
+                <View style={styles.clientAvatar}>
+                  <Text style={styles.clientAvatarText}>
+                    {(req.clientName ?? 'C')[0].toUpperCase()}
+                  </Text>
+                </View>
+                <View style={styles.requestInfo}>
+                  <Text style={styles.requestTitle}>{req.title}</Text>
+                  <Text style={styles.requestClient}>{req.clientName ?? 'Cliente'}</Text>
+                  {req.address ? (
+                    <Text style={styles.requestLocation}>📍 {req.address}</Text>
+                  ) : null}
+                  {req.budgetMax != null && (
+                    <Text style={styles.requestBudget}>
+                      R$ {req.budgetMin?.toFixed(0)} – R$ {req.budgetMax?.toFixed(0)}
+                    </Text>
+                  )}
+                </View>
+                <View style={styles.normalBadge}>
+                  <Text style={styles.normalText}>Novo</Text>
+                </View>
+              </View>
+              <View style={styles.requestActions}>
+                <TouchableOpacity
+                  style={styles.viewBtn}
+                  onPress={() => navigation.navigate('RequestDetail', { requestId: req.id })}
+                >
+                  <Text style={styles.viewBtnText}>Ver</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.acceptBtn}
+                  onPress={() => handleQuickAccept(req)}
+                >
+                  <Text style={styles.acceptBtnText}>Aceitar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))
         )}
-        {(requests ?? []).map((req) => (
-          <View key={req.id} style={styles.requestCard}>
-            <View style={styles.requestTop}>
-              <View style={styles.clientAvatar}>
-                <Text style={styles.clientAvatarText}>C</Text>
-              </View>
-              <View style={styles.requestInfo}>
-                <Text style={styles.requestTitle}>{req.clientName ?? 'Cliente'} — {req.title}</Text>
-                <Text style={styles.requestLocation}>📍 {req.address}</Text>
-              </View>
-              <View style={[styles.urgencyBadge, styles.normalBadge]}>
-                <Text style={[styles.urgencyText, styles.normalText]}>Nova</Text>
-              </View>
-            </View>
-            <View style={styles.requestActions}>
-              <TouchableOpacity
-                style={styles.viewBtn}
-                onPress={() => navigation.navigate('RequestDetail', { requestId: req.id })}
-              >
-                <Text style={styles.viewBtnText}>Ver</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.refuseBtn}
-                onPress={() => {
-                  Alert.alert(
-                    'Recusar solicitação',
-                    'Deseja recusar esta solicitação?',
-                    [
-                      { text: 'Cancelar', style: 'cancel' },
-                      {
-                        text: 'Recusar',
-                        style: 'destructive',
-                        onPress: () => {
-                          requestService.cancel(req.id)
-                            .then(() => requestService.getReceivedRequests().then(setRequests))
-                            .catch(() => {});
-                        },
-                      },
-                    ]
-                  );
-                }}
-              >
-                <Text style={styles.refuseBtnText}>Recusar</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        ))}
+
+        {openRequests.length > 5 && (
+          <TouchableOpacity style={styles.seeAllBtn}>
+            <Text style={styles.seeAllBtnText}>Ver todas ({openRequests.length})</Text>
+          </TouchableOpacity>
+        )}
 
         <Text style={styles.sectionTitle}>Agenda de hoje</Text>
-        {TODAY_SCHEDULE.length === 0 && (
+        {todayRequests.length === 0 ? (
           <View style={styles.emptyRequests}>
             <Text style={styles.emptyText}>Nenhum agendamento para hoje</Text>
           </View>
+        ) : (
+          todayRequests.map((item) => {
+            const time = item.scheduledAt
+              ? new Date(item.scheduledAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+              : '–';
+            return (
+              <TouchableOpacity
+                key={item.id}
+                style={styles.scheduleCard}
+                onPress={() => navigation.navigate('ServiceStatus', { requestId: item.id, clientName: item.clientName ?? 'Cliente' })}
+              >
+                <View style={styles.scheduleTime}>
+                  <Text style={styles.scheduleTimeText}>{time}</Text>
+                </View>
+                <View style={styles.scheduleInfo}>
+                  <Text style={styles.scheduleService}>{item.title}</Text>
+                  <Text style={styles.scheduleClient}>{item.clientName ?? 'Cliente'}</Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })
         )}
-        {TODAY_SCHEDULE.map((item, i) => (
-          <View key={i} style={styles.scheduleCard}>
-            <View style={styles.scheduleTime}>
-              <Text style={styles.scheduleTimeText}>{item.time}</Text>
-            </View>
-            <View style={styles.scheduleInfo}>
-              <Text style={styles.scheduleService}>{item.service}</Text>
-              <Text style={styles.scheduleClient}>{item.client}</Text>
-            </View>
-          </View>
-        ))}
         <View style={{ height: 20 }} />
       </ScrollView>
     </SafeAreaView>
@@ -155,12 +227,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   avatarText: { color: Colors.white, fontSize: 18, fontWeight: '700' },
-  statsGrid: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    gap: 10,
-    marginBottom: 24,
-  },
+  statsGrid: { flexDirection: 'row', paddingHorizontal: 20, gap: 10, marginBottom: 24 },
   statCard: {
     flex: 1,
     backgroundColor: Colors.surface,
@@ -170,7 +237,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  statValue: { fontSize: 18, fontWeight: '700', textAlign: 'center' },
+  statValue: { fontSize: 15, fontWeight: '700', textAlign: 'center' },
   statLabel: { fontSize: 11, color: Colors.textMuted, marginTop: 4, textAlign: 'center' },
   sectionTitle: {
     fontSize: 17,
@@ -188,7 +255,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  requestTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 12 },
+  requestTop: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 12, gap: 12 },
   clientAvatar: {
     width: 44,
     height: 44,
@@ -200,15 +267,29 @@ const styles = StyleSheet.create({
   clientAvatarText: { color: Colors.primary, fontSize: 18, fontWeight: '700' },
   requestInfo: { flex: 1 },
   requestTitle: { fontSize: 14, fontWeight: '600', color: Colors.white },
-  requestLocation: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
-  urgencyBadge: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
-  urgentBadge: { backgroundColor: Colors.error + '22' },
-  normalBadge: { backgroundColor: Colors.secondary + '22' },
-  urgencyText: { fontSize: 11, fontWeight: '600' },
-  urgentText: { color: Colors.error },
-  normalText: { color: Colors.secondary },
+  requestClient: { fontSize: 12, color: Colors.textMuted, marginTop: 1 },
+  requestLocation: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
+  requestBudget: { fontSize: 12, color: Colors.success, marginTop: 2, fontWeight: '500' },
+  normalBadge: {
+    backgroundColor: Colors.secondary + '22',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  normalText: { color: Colors.secondary, fontSize: 11, fontWeight: '600' },
   requestActions: { flexDirection: 'row', gap: 10 },
   viewBtn: {
+    flex: 1,
+    height: 36,
+    backgroundColor: Colors.primary + '22',
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.primary + '44',
+  },
+  viewBtnText: { color: Colors.primary, fontSize: 13, fontWeight: '600' },
+  acceptBtn: {
     flex: 1,
     height: 36,
     backgroundColor: Colors.secondary,
@@ -216,17 +297,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  viewBtnText: { color: Colors.white, fontSize: 13, fontWeight: '600' },
-  refuseBtn: {
-    flex: 1,
-    height: 36,
-    borderRadius: 8,
+  acceptBtnText: { color: Colors.white, fontSize: 13, fontWeight: '600' },
+  seeAllBtn: {
+    marginHorizontal: 20,
+    marginBottom: 16,
+    height: 40,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: Colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  refuseBtnText: { color: Colors.textMuted, fontSize: 13 },
+  seeAllBtnText: { color: Colors.textMuted, fontSize: 13 },
+  emptyRequests: { padding: 20, alignItems: 'center' },
+  emptyText: { color: Colors.textMuted, fontSize: 14 },
   scheduleCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -241,14 +325,9 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     gap: 14,
   },
-  scheduleTime: {
-    width: 52,
-    alignItems: 'center',
-  },
+  scheduleTime: { width: 52, alignItems: 'center' },
   scheduleTimeText: { fontSize: 14, fontWeight: '700', color: Colors.secondary },
   scheduleInfo: {},
   scheduleService: { fontSize: 14, fontWeight: '600', color: Colors.white },
   scheduleClient: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
-  emptyRequests: { padding: 20, alignItems: 'center' },
-  emptyText: { color: Colors.textMuted, fontSize: 14 },
 });

@@ -41,8 +41,13 @@ export const requestService = {
     return extractList(data);
   },
 
+  getOpenRequests: async (): Promise<ServiceRequest[]> => {
+    const { data } = await api.get<any>('/requests', { params: { size: 100 } });
+    return extractList(data);
+  },
+
   getReceivedRequests: async (): Promise<ServiceRequest[]> => {
-    const { data } = await api.get<any>('/requests/received');
+    const { data } = await api.get<any>('/requests/received', { params: { size: 100 } });
     return extractList(data);
   },
 

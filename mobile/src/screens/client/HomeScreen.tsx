@@ -16,6 +16,7 @@ import { useAuthStore } from '../../store/auth.store';
 import { providerService } from '../../services/provider.service';
 import { Provider } from '../../types/models';
 import { ClientRootParamList } from '../../navigation/ClientNavigator';
+import { Avatar } from '../../components/Avatar';
 
 export function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<ClientRootParamList>>();
@@ -89,9 +90,7 @@ export function HomeScreen() {
               style={styles.providerCard}
               onPress={() => p?.id && navigation.navigate('ProviderProfile', { providerId: p.id })}
             >
-              <View style={styles.providerAvatar}>
-                <Text style={styles.providerAvatarText}>{p?.name?.[0] ?? '?'}</Text>
-              </View>
+              <Avatar name={p?.name} avatarUrl={p?.avatarUrl} size={52} />
               <View style={styles.providerInfo}>
                 <Text style={styles.providerName}>{p?.name ?? '—'}</Text>
                 <Text style={styles.providerSpecialty}>{p?.specialty ?? ''}</Text>

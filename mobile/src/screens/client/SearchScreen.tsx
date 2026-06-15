@@ -17,6 +17,7 @@ import { CATEGORIES } from '../../constants/categories';
 import { providerService } from '../../services/provider.service';
 import { Provider } from '../../types/models';
 import { ClientRootParamList } from '../../navigation/ClientNavigator';
+import { Avatar } from '../../components/Avatar';
 
 const RECENT_SEARCHES = ['Eletricista', 'Encanador', 'Pintor', 'Faxina'];
 
@@ -127,9 +128,7 @@ export function SearchScreen({ route }: Props) {
                   style={styles.resultCard}
                   onPress={() => navigation.navigate('ProviderProfile', { providerId: p.id })}
                 >
-                  <View style={styles.resultAvatar}>
-                    <Text style={styles.resultAvatarText}>{p?.name?.[0] ?? '?'}</Text>
-                  </View>
+                  <Avatar name={p?.name} avatarUrl={p?.avatarUrl} size={48} />
                   <View style={styles.resultInfo}>
                     <Text style={styles.resultName}>{p?.name ?? '—'}</Text>
                     <Text style={styles.resultSpecialty}>{p?.specialty ?? ''}</Text>

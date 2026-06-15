@@ -15,6 +15,7 @@ import { providerService } from '../../services/provider.service';
 import { favoritesService } from '../../services/favorites.service';
 import { Provider } from '../../types/models';
 import { ClientRootParamList } from '../../navigation/ClientNavigator';
+import { Avatar } from '../../components/Avatar';
 
 type Props = {
   navigation: NativeStackNavigationProp<ClientRootParamList, 'ProviderProfile'>;
@@ -89,8 +90,8 @@ export function ProviderProfileScreen({ navigation, route }: Props) {
             />
           </TouchableOpacity>
           <View style={styles.heroContent}>
-            <View style={styles.heroAvatar}>
-              <Text style={styles.heroAvatarText}>{p?.name?.[0] ?? '?'}</Text>
+            <View style={styles.heroAvatarWrapper}>
+              <Avatar name={p?.name} avatarUrl={provider?.avatarUrl} size={88} />
             </View>
             <Text style={styles.heroName}>{p.name}</Text>
             <Text style={styles.heroSpecialty}>{p.specialty}</Text>
@@ -198,18 +199,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   heroContent: { alignItems: 'center' },
-  heroAvatar: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+  heroAvatarWrapper: {
     marginBottom: 12,
     borderWidth: 3,
     borderColor: Colors.background,
+    borderRadius: 44,
+    overflow: 'hidden',
   },
-  heroAvatarText: { color: Colors.white, fontSize: 36, fontWeight: '700' },
   heroName: { fontSize: 20, fontWeight: '700', color: Colors.white },
   heroSpecialty: { fontSize: 14, color: Colors.textMuted, marginTop: 4 },
   availableBadge: {

@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 import { favoritesService, FavoriteItem } from '../../services/favorites.service';
 import { ClientRootParamList } from '../../navigation/ClientNavigator';
+import { Avatar } from '../../components/Avatar';
 
 export function FavoritesScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<ClientRootParamList>>();
@@ -77,9 +78,7 @@ export function FavoritesScreen() {
             style={styles.card}
             onPress={() => navigation.navigate('ProviderProfile', { providerId: item.providerId })}
           >
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{item.providerName?.[0]?.toUpperCase() ?? '?'}</Text>
-            </View>
+            <Avatar name={item.providerName} avatarUrl={item.providerAvatarUrl} size={52} />
             <View style={styles.cardInfo}>
               <Text style={styles.name}>{item.providerName}</Text>
               <Text style={styles.specialty}>{item.category}</Text>

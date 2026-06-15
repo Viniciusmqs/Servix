@@ -13,6 +13,7 @@ import { Colors } from '../../constants/colors';
 import { requestService } from '../../services/request.service';
 import { ServiceRequest } from '../../types/models';
 import { ClientRootParamList } from '../../navigation/ClientNavigator';
+import { Avatar } from '../../components/Avatar';
 
 type Tab = 'active' | 'completed' | 'cancelled';
 
@@ -74,9 +75,7 @@ export function BookingsScreen() {
         renderItem={({ item }) => (
           <View style={styles.card}>
             <View style={styles.cardTop}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{(item.providerName ?? 'P')[0].toUpperCase()}</Text>
-              </View>
+              <Avatar name={item.providerName ?? item.title} avatarUrl={(item as any).providerAvatarUrl} size={46} />
               <View style={styles.cardInfo}>
                 <Text style={styles.cardTitle}>{item.providerName ?? item.title}</Text>
                 <Text style={styles.cardCategory}>{item.title} · {item.category}</Text>

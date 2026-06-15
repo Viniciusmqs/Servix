@@ -46,6 +46,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/providers", "/providers/{id}", "/providers/featured").permitAll()
                 .requestMatchers(HttpMethod.GET, "/requests", "/requests/{id}").permitAll()
                 .requestMatchers(HttpMethod.GET, "/reviews/provider/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/payments/webhook").permitAll()
                 .anyRequest().authenticated()
             )
             .authenticationProvider(authenticationProvider())

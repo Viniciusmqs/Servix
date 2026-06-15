@@ -78,3 +78,6 @@ logging:
     com.servix: DEBUG
     org.springframework.security: INFO
     org.hibernate.SQL: INFO
+
+mercadopago:
+  access-token: ${MP_ACCESS_TOKEN:TEST-0000000000000000-000000-00000000000000000000000000000000-000000000}

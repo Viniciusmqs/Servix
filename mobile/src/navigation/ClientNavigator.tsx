@@ -29,7 +29,7 @@ export type ClientRootParamList = {
   ProviderProfile: { providerId: string };
   Booking: { providerId: string };
   Schedule: { providerId?: string };
-  Payment: undefined;
+  Payment: { requestId?: string } | undefined;
   Confirmation: { requestId?: string } | undefined;
   Tracking: { requestId: string; providerName?: string; providerSpecialty?: string };
   Chat: { requestId: string; providerName: string };

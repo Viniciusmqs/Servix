@@ -104,6 +104,13 @@
             <version>${springdoc.version}</version>
         </dependency>
 
+        <!-- MercadoPago SDK -->
+        <dependency>
+            <groupId>com.mercadopago</groupId>
+            <artifactId>sdk-java</artifactId>
+            <version>2.1.24</version>
+        </dependency>
+
         <!-- Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

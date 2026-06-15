@@ -34,10 +34,11 @@ export const chatService = {
     return extractList(data);
   },
 
-  sendMessage: async (requestId: string, content: string): Promise<ChatMessage> => {
+  sendMessage: async (requestId: string, content: string, receiverId: string): Promise<ChatMessage> => {
     const { data } = await api.post<ChatMessage>(`/chat/requests/${requestId}/messages`, {
       content,
       type: 'TEXT',
+      receiverId,
     });
     return data;
   },

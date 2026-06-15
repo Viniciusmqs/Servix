@@ -16,14 +16,19 @@ type Props = {
   route: RouteProp<ClientRootParamList, 'Payment'>;
 };
 
-const SERVICE_VALUE = 250.0;
-const PLATFORM_FEE = SERVICE_VALUE * 0.05;
-const TOTAL = SERVICE_VALUE + PLATFORM_FEE;
-
 export function PaymentScreen({ navigation, route }: Props) {
-  const requestId = (route.params as any)?.requestId as string | undefined;
+  const params = route.params as any;
+  const requestId: string = params?.requestId ?? 'demo';
+  const providerName: string = params?.providerName ?? 'Prestador';
+  const rawAmount: number = params?.amount ?? 250;
+
+  const SERVICE_VALUE = rawAmount;
+  const PLATFORM_FEE = parseFloat((SERVICE_VALUE * 0.05).toFixed(2));
+  const TOTAL = parseFloat((SERVICE_VALUE + PLATFORM_FEE).toFixed(2));
+
   const [loading, setLoading] = useState(false);
   const [method, setMethod] = useState<'card' | 'pix' | 'boleto'>('card');
+  const [prefId, setPrefId] = useState<string | null>(null);
 
   const methods = [
     { id: 'card' as const, label: 'Cartão de crédito', icon: '💳' },
@@ -35,28 +40,51 @@ export function PaymentScreen({ navigation, route }: Props) {
     try {
       setLoading(true);
       const pref = await paymentService.createPreference(
-        requestId ?? 'demo',
-        'Serviço Servix',
+        requestId,
+        `Serviço Servix - ${providerName}`,
         TOTAL
       );
-      // Abre o checkout do MercadoPago no navegador
-      // Em sandbox usa sandboxInitPoint; em produção usa initPoint
+      setPrefId(pref.preferenceId);
+
       const url = pref.sandboxInitPoint || pref.initPoint;
-      const supported = await Linking.canOpenURL(url);
-      if (supported) {
-        await Linking.openURL(url);
-        // Navega para confirmação enquanto o usuário completa o pagamento
-        navigation.navigate('Confirmation', { requestId });
-      } else {
-        Alert.alert('Erro', 'Não foi possível abrir o checkout de pagamento.');
+      if (!url) {
+        Alert.alert('Erro', 'URL de pagamento não retornada pela API.');
+        return;
       }
-    } catch {
-      // Se o backend não tiver credenciais válidas, continua mesmo assim (sandbox/demo)
+
       Alert.alert(
-        'Pagamento em sandbox',
-        'Configure MP_ACCESS_TOKEN no servidor para ativar pagamentos reais. Continuando em modo demo.',
-        [{ text: 'OK', onPress: () => navigation.navigate('Confirmation', { requestId }) }]
+        '✅ API MercadoPago OK',
+        `Preferência criada: ${pref.preferenceId}\n\nVocê será redirecionado para o checkout sandbox.`,
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Abrir Checkout',
+            onPress: async () => {
+              await Linking.openURL(url);
+              navigation.navigate('Confirmation', { requestId });
+            },
+          },
+        ]
       );
+    } catch (e: any) {
+      const status = e?.response?.status;
+      const msg = e?.response?.data?.message ?? e?.message ?? 'Erro desconhecido';
+
+      if (status === 401) {
+        Alert.alert('Token inválido', 'Configure MP_ACCESS_TOKEN válido no servidor.\n\nErro: ' + msg);
+      } else {
+        Alert.alert(
+          'Erro na API',
+          `Status: ${status ?? 'N/A'}\n${msg}\n\nVerifique o MP_ACCESS_TOKEN no docker-compose.yml`,
+          [
+            {
+              text: 'Continuar em demo',
+              onPress: () => navigation.navigate('Confirmation', { requestId }),
+            },
+            { text: 'OK', style: 'cancel' },
+          ]
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -74,6 +102,16 @@ export function PaymentScreen({ navigation, route }: Props) {
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          <View style={styles.providerRow}>
+            <View style={styles.providerAvatar}>
+              <Text style={styles.providerInitial}>{providerName[0]?.toUpperCase() ?? 'P'}</Text>
+            </View>
+            <View>
+              <Text style={styles.providerLabel}>Prestador</Text>
+              <Text style={styles.providerName}>{providerName}</Text>
+            </View>
+          </View>
+
           <Text style={styles.sectionTitle}>Resumo</Text>
           <View style={styles.summaryCard}>
             <View style={styles.summaryRow}>
@@ -107,6 +145,13 @@ export function PaymentScreen({ navigation, route }: Props) {
             ))}
           </View>
 
+          {prefId && (
+            <View style={styles.prefInfo}>
+              <Ionicons name="checkmark-circle" size={18} color={Colors.success} />
+              <Text style={styles.prefInfoText}>Preferência: {prefId}</Text>
+            </View>
+          )}
+
           <View style={styles.mpBadge}>
             <Text style={styles.mpBadgeText}>🔒 Pagamento seguro via</Text>
             <Text style={styles.mpBadgeBrand}>MercadoPago</Text>
@@ -114,7 +159,7 @@ export function PaymentScreen({ navigation, route }: Props) {
 
           <View style={styles.mpInfo}>
             <Text style={styles.mpInfoText}>
-              Ao confirmar, você será redirecionado para o checkout seguro do MercadoPago para concluir o pagamento.
+              Ao confirmar, a API do MercadoPago será chamada e você será redirecionado para o checkout sandbox para concluir o pagamento.
             </Text>
           </View>
         </ScrollView>
@@ -128,7 +173,10 @@ export function PaymentScreen({ navigation, route }: Props) {
             {loading ? (
               <ActivityIndicator color={Colors.white} />
             ) : (
-              <Text style={styles.payBtnText}>Pagar R$ {TOTAL.toFixed(2)}</Text>
+              <>
+                <Ionicons name="card" size={18} color={Colors.white} />
+                <Text style={styles.payBtnText}>Pagar R$ {TOTAL.toFixed(2)}</Text>
+              </>
             )}
           </TouchableOpacity>
         </View>
@@ -147,7 +195,29 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 17, fontWeight: '700', color: Colors.white },
   content: { flex: 1, padding: 20 },
-  sectionTitle: { fontSize: 14, fontWeight: '600', color: Colors.textMuted, marginBottom: 12, marginTop: 8 },
+  providerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 20,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  providerAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  providerInitial: { color: Colors.white, fontSize: 18, fontWeight: '700' },
+  providerLabel: { fontSize: 12, color: Colors.textMuted },
+  providerName: { fontSize: 15, fontWeight: '600', color: Colors.white, marginTop: 2 },
+  sectionTitle: { fontSize: 14, fontWeight: '600', color: Colors.textMuted, marginBottom: 12, marginTop: 4 },
   summaryCard: {
     backgroundColor: Colors.surface, borderRadius: 14, padding: 16,
     borderWidth: 1, borderColor: Colors.border, marginBottom: 24,
@@ -158,7 +228,7 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: Colors.border, marginVertical: 4 },
   totalLabel: { fontSize: 15, fontWeight: '700', color: Colors.white },
   totalValue: { fontSize: 15, fontWeight: '700', color: Colors.primary },
-  methodsGrid: { flexDirection: 'row', gap: 10, marginBottom: 24, flexWrap: 'wrap' },
+  methodsGrid: { flexDirection: 'row', gap: 10, marginBottom: 20, flexWrap: 'wrap' },
   methodCard: {
     flex: 1, minWidth: '28%', backgroundColor: Colors.surface, borderRadius: 12,
     padding: 14, alignItems: 'center', gap: 8,
@@ -168,6 +238,18 @@ const styles = StyleSheet.create({
   methodIcon: { fontSize: 24 },
   methodLabel: { fontSize: 11, color: Colors.textMuted, textAlign: 'center' },
   methodLabelActive: { color: Colors.primary, fontWeight: '600' },
+  prefInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: Colors.success + '15',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: Colors.success + '33',
+  },
+  prefInfoText: { color: Colors.success, fontSize: 12, flex: 1 },
   mpBadge: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 6, marginBottom: 12,
@@ -179,10 +261,23 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: Colors.border, marginBottom: 20,
   },
   mpInfoText: { fontSize: 13, color: Colors.textMuted, lineHeight: 20, textAlign: 'center' },
-  footer: { padding: 20, borderTopWidth: 1, borderTopColor: Colors.border },
+  footer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    gap: 10,
+  },
   payBtn: {
-    backgroundColor: Colors.primary, height: 54, borderRadius: 12,
-    alignItems: 'center', justifyContent: 'center',
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.primary,
+    height: 54,
+    borderRadius: 12,
+    gap: 8,
   },
   payBtnDisabled: { opacity: 0.6 },
   payBtnText: { color: Colors.white, fontSize: 16, fontWeight: '700' },

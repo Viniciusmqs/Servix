@@ -18,6 +18,7 @@ import { RouteProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 import { chatService, ChatMessage } from '../../services/chat.service';
+import { requestService } from '../../services/request.service';
 import { useAuthStore } from '../../store/auth.store';
 import { ClientRootParamList } from '../../navigation/ClientNavigator';
 
@@ -30,6 +31,27 @@ export function ChatScreen({ navigation, route }: Props) {
   const { requestId, providerName } = route.params;
   const user = useAuthStore((s) => s.user);
 
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [text, setText] = useState('');
+  const [receiverId, setReceiverId] = useState<string | null>(null);
+  const listRef = useRef<FlatList>(null);
+
+  useEffect(() => {
+    Promise.allSettled([
+      chatService.getMessages(requestId),
+      requestService.getById(requestId),
+    ]).then(([msgs, req]) => {
+      if (msgs.status === 'fulfilled') setMessages(msgs.value);
+      if (req.status === 'fulfilled') {
+        const r = req.value;
+        setReceiverId(r.clientId === user?.id ? (r.providerId ?? null) : r.clientId);
+      }
+    }).finally(() => setLoading(false));
+    chatService.markAsRead(requestId).catch(() => {});
+  }, [requestId]);
+
   const handleCall = () => {
     Alert.alert(
       `Ligar para ${providerName}`,
@@ -38,38 +60,32 @@ export function ChatScreen({ navigation, route }: Props) {
         { text: 'Cancelar', style: 'cancel' },
         {
           text: 'Ligar',
-          onPress: () => Linking.openURL('tel:+5511999990000').catch(() =>
-            Alert.alert('Erro', 'Não foi possível iniciar a ligação.')
-          ),
+          onPress: () =>
+            Linking.openURL('tel:+5511999990000').catch(() =>
+              Alert.alert('Erro', 'Não foi possível iniciar a ligação.')
+            ),
         },
       ]
     );
   };
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [sending, setSending] = useState(false);
-  const [text, setText] = useState('');
-  const listRef = useRef<FlatList>(null);
-
-  useEffect(() => {
-    chatService.getMessages(requestId)
-      .then(setMessages)
-      .catch(() => {})
-      .finally(() => setLoading(false));
-    chatService.markAsRead(requestId).catch(() => {});
-  }, [requestId]);
 
   const handleSend = async () => {
     if (!text.trim() || sending) return;
+    if (!receiverId) {
+      Alert.alert('Erro', 'Não foi possível identificar o destinatário. O prestador ainda não foi atribuído a este pedido.');
+      return;
+    }
     const content = text.trim();
     setText('');
     setSending(true);
     try {
-      const msg = await chatService.sendMessage(requestId, content);
+      const msg = await chatService.sendMessage(requestId, content, receiverId);
       setMessages((prev) => [...prev, msg]);
       setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
-    } catch {
-      setText(content); // restore on failure
+    } catch (e: any) {
+      setText(content);
+      const errMsg = e?.response?.data?.message ?? 'Não foi possível enviar a mensagem.';
+      Alert.alert('Erro', errMsg);
     } finally {
       setSending(false);
     }
@@ -81,7 +97,6 @@ export function ChatScreen({ navigation, route }: Props) {
       hour: '2-digit',
       minute: '2-digit',
     });
-
     return (
       <View style={[styles.messageRow, isMe && styles.messageRowMe]}>
         <View style={[styles.bubble, isMe ? styles.bubbleMe : styles.bubbleThem]}>
@@ -107,9 +122,7 @@ export function ChatScreen({ navigation, route }: Props) {
               <View style={styles.headerAvatar}>
                 <Text style={styles.headerAvatarText}>{providerName?.[0]?.toUpperCase() ?? 'P'}</Text>
               </View>
-              <View>
-                <Text style={styles.headerName}>{providerName}</Text>
-              </View>
+              <Text style={styles.headerName}>{providerName}</Text>
             </View>
             <TouchableOpacity onPress={handleCall}>
               <Ionicons name="call-outline" size={22} color={Colors.white} />
@@ -149,11 +162,15 @@ export function ChatScreen({ navigation, route }: Props) {
               multiline
             />
             <TouchableOpacity
-              style={[styles.sendBtn, (!text.trim() || sending) && styles.sendBtnDisabled]}
+              style={[styles.sendBtn, (!text.trim() || sending || !receiverId) && styles.sendBtnDisabled]}
               onPress={handleSend}
               disabled={!text.trim() || sending}
             >
-              <Ionicons name="send" size={18} color={Colors.white} />
+              {sending ? (
+                <ActivityIndicator color={Colors.white} size="small" />
+              ) : (
+                <Ionicons name="send" size={18} color={Colors.white} />
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -192,12 +209,7 @@ const styles = StyleSheet.create({
   emptyText: { color: Colors.textMuted, fontSize: 14, textAlign: 'center' },
   messageRow: { alignItems: 'flex-start', maxWidth: '80%' },
   messageRowMe: { alignSelf: 'flex-end', alignItems: 'flex-end' },
-  bubble: {
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginBottom: 2,
-  },
+  bubble: { borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 2 },
   bubbleMe: { backgroundColor: Colors.primary, borderBottomRightRadius: 4 },
   bubbleThem: { backgroundColor: Colors.inputBackground, borderBottomLeftRadius: 4 },
   bubbleText: { color: Colors.white, fontSize: 14, lineHeight: 20 },

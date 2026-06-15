@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -16,6 +17,7 @@ import { RouteProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 import { chatService, ChatMessage } from '../../services/chat.service';
+import { requestService } from '../../services/request.service';
 import { useAuthStore } from '../../store/auth.store';
 import { ProviderRootParamList } from '../../navigation/ProviderNavigator';
 
@@ -27,31 +29,46 @@ type Props = {
 export function ProviderChatScreen({ navigation, route }: Props) {
   const { requestId, clientName } = route.params;
   const user = useAuthStore((s) => s.user);
+
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [text, setText] = useState('');
+  const [receiverId, setReceiverId] = useState<string | null>(null);
   const listRef = useRef<FlatList>(null);
 
   useEffect(() => {
-    chatService.getMessages(requestId)
-      .then(setMessages)
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    Promise.allSettled([
+      chatService.getMessages(requestId),
+      requestService.getById(requestId),
+    ]).then(([msgs, req]) => {
+      if (msgs.status === 'fulfilled') setMessages(msgs.value);
+      if (req.status === 'fulfilled') {
+        const r = req.value;
+        // Provider receives from client; if somehow provider is also stored in req, pick client
+        setReceiverId(r.clientId);
+      }
+    }).finally(() => setLoading(false));
     chatService.markAsRead(requestId).catch(() => {});
   }, [requestId]);
 
   const handleSend = async () => {
     if (!text.trim() || sending) return;
+    if (!receiverId) {
+      Alert.alert('Erro', 'Não foi possível identificar o cliente. Verifique se o pedido existe.');
+      return;
+    }
     const content = text.trim();
     setText('');
     setSending(true);
     try {
-      const msg = await chatService.sendMessage(requestId, content);
+      const msg = await chatService.sendMessage(requestId, content, receiverId);
       setMessages((prev) => [...prev, msg]);
       setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
-    } catch {
+    } catch (e: any) {
       setText(content);
+      const errMsg = e?.response?.data?.message ?? 'Não foi possível enviar a mensagem.';
+      Alert.alert('Erro', errMsg);
     } finally {
       setSending(false);
     }
@@ -63,7 +80,6 @@ export function ProviderChatScreen({ navigation, route }: Props) {
       hour: '2-digit',
       minute: '2-digit',
     });
-
     return (
       <View style={[styles.messageRow, isMe && styles.messageRowMe]}>
         <View style={[styles.bubble, isMe ? styles.bubbleMe : styles.bubbleThem]}>
@@ -76,70 +92,70 @@ export function ProviderChatScreen({ navigation, route }: Props) {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Ionicons name="chevron-back" size={24} color={Colors.white} />
-          </TouchableOpacity>
-          <View style={styles.headerInfo}>
-            <View style={styles.headerAvatar}>
-              <Text style={styles.headerAvatarText}>{clientName?.[0]?.toUpperCase() ?? 'C'}</Text>
-            </View>
-            <View>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <View style={styles.container}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => navigation.goBack()}>
+              <Ionicons name="chevron-back" size={24} color={Colors.white} />
+            </TouchableOpacity>
+            <View style={styles.headerInfo}>
+              <View style={styles.headerAvatar}>
+                <Text style={styles.headerAvatarText}>{clientName?.[0]?.toUpperCase() ?? 'C'}</Text>
+              </View>
               <Text style={styles.headerName}>{clientName}</Text>
             </View>
+            <View style={{ width: 22 }} />
           </View>
-          <TouchableOpacity>
-            <Ionicons name="call-outline" size={22} color={Colors.white} />
-          </TouchableOpacity>
-        </View>
 
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator color={Colors.secondary} size="large" />
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator color={Colors.secondary} size="large" />
+            </View>
+          ) : (
+            <FlatList
+              ref={listRef}
+              data={messages}
+              keyExtractor={(item) => item.id}
+              renderItem={renderMessage}
+              contentContainerStyle={styles.messagesList}
+              showsVerticalScrollIndicator={false}
+              ListEmptyComponent={
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>Nenhuma mensagem ainda. Inicie a conversa! 👋</Text>
+                </View>
+              }
+              onContentSizeChange={() => {
+                if (messages.length > 0) listRef.current?.scrollToEnd({ animated: false });
+              }}
+            />
+          )}
+
+          <View style={styles.inputRow}>
+            <TextInput
+              style={styles.input}
+              placeholder="Digite uma mensagem..."
+              placeholderTextColor={Colors.textMuted}
+              value={text}
+              onChangeText={setText}
+              multiline
+            />
+            <TouchableOpacity
+              style={[styles.sendBtn, (!text.trim() || sending) && styles.sendBtnDisabled]}
+              onPress={handleSend}
+              disabled={!text.trim() || sending}
+            >
+              {sending ? (
+                <ActivityIndicator color={Colors.white} size="small" />
+              ) : (
+                <Ionicons name="send" size={18} color={Colors.white} />
+              )}
+            </TouchableOpacity>
           </View>
-        ) : (
-          <FlatList
-            ref={listRef}
-            data={messages}
-            keyExtractor={(item) => item.id}
-            renderItem={renderMessage}
-            contentContainerStyle={styles.messagesList}
-            showsVerticalScrollIndicator={false}
-            ListEmptyComponent={
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>Nenhuma mensagem ainda. Inicie a conversa! 👋</Text>
-              </View>
-            }
-            onContentSizeChange={() => {
-              if (messages.length > 0) listRef.current?.scrollToEnd({ animated: false });
-            }}
-          />
-        )}
-
-        <View style={styles.inputRow}>
-          <TextInput
-            style={styles.input}
-            placeholder="Digite uma mensagem..."
-            placeholderTextColor={Colors.textMuted}
-            value={text}
-            onChangeText={setText}
-            multiline
-          />
-          <TouchableOpacity
-            style={[styles.sendBtn, (!text.trim() || sending) && styles.sendBtnDisabled]}
-            onPress={handleSend}
-            disabled={!text.trim() || sending}
-          >
-            <Ionicons name="send" size={18} color={Colors.white} />
-          </TouchableOpacity>
         </View>
-      </View>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

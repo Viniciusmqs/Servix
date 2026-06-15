@@ -8,11 +8,13 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 import { requestService } from '../../services/request.service';
+import { paymentService } from '../../services/payment.service';
 import { ServiceRequest } from '../../types/models';
 
 type Transaction = {
@@ -121,7 +123,31 @@ export function EarningsScreen() {
           <Text style={styles.balanceValue}>{formatBRL(total)}</Text>
           <TouchableOpacity
             style={styles.withdrawBtn}
-            onPress={() => Alert.alert('Saque', 'Funcionalidade de saque em breve.\n\nFale com o suporte: suporte@servix.com.br')}
+            onPress={async () => {
+              if (total <= 0) {
+                Alert.alert('Saldo insuficiente', 'Você não possui ganhos para sacar ainda.');
+                return;
+              }
+              try {
+                const pref = await paymentService.createPreference(
+                  'saque-teste',
+                  'Saque Servix - teste API',
+                  total
+                );
+                const url = pref.sandboxInitPoint || pref.initPoint;
+                Alert.alert(
+                  '✅ API MercadoPago OK',
+                  `Preferência: ${pref.preferenceId}\n\nAbre sandbox para confirmar o fluxo de pagamento.`,
+                  [
+                    { text: 'Fechar', style: 'cancel' },
+                    { text: 'Abrir Checkout', onPress: () => Linking.openURL(url) },
+                  ]
+                );
+              } catch (e: any) {
+                const msg = e?.response?.data?.message ?? e?.message ?? 'Erro desconhecido';
+                Alert.alert('Erro na API', `${msg}\n\nVerifique MP_ACCESS_TOKEN no servidor.`);
+              }
+            }}
           >
             <Ionicons name="arrow-down-circle-outline" size={18} color={Colors.white} />
             <Text style={styles.withdrawBtnText}>Solicitar saque</Text>

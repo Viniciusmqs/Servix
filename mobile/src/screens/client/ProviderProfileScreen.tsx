@@ -14,8 +14,27 @@ import { Colors } from '../../constants/colors';
 import { providerService } from '../../services/provider.service';
 import { favoritesService } from '../../services/favorites.service';
 import { Provider } from '../../types/models';
+import { Image } from 'react-native';
 import { ClientRootParamList } from '../../navigation/ClientNavigator';
 import { Avatar } from '../../components/Avatar';
+
+const PORTFOLIO_SEEDS: Record<string, string[]> = {
+  'Elétrica':       ['electrical-panel','wiring-work','circuit-board','power-outlet','light-fixture','electrical-box'],
+  'Hidráulica':     ['plumbing-pipe','water-tap','bathroom-sink','shower','pipe-repair','water-heater'],
+  'Limpeza':        ['clean-house','mopping-floor','cleaning-supplies','sparkling-kitchen','vacuum','organized-room'],
+  'Pintura':        ['painting-wall','paint-roller','colorful-room','fresh-paint','brushwork','interior-design'],
+  'Jardinagem':     ['garden-flowers','lawn-care','pruning','green-plants','landscape','outdoor-garden'],
+  'Reformas':       ['renovation-room','construction','new-bathroom','tile-work','modern-kitchen','remodel'],
+  'TI':             ['computer-setup','network-cables','server-room','tech-support','wifi-router','laptop-repair'],
+  'Ar-condicionado':['air-conditioner','hvac-unit','cooling-system','split-ac','ventilation','ac-installation'],
+  'Segurança':      ['security-camera','cctv-system','alarm-panel','gate-access','monitoring','surveillance'],
+  'Mudança':        ['moving-boxes','moving-truck','packing','furniture-move','relocation','delivery'],
+};
+
+function getPortfolioImages(category: string, count = 6): string[] {
+  const seeds = PORTFOLIO_SEEDS[category] ?? ['home-service','professional-work','quality-service','handyman','skilled-worker','service-done'];
+  return Array.from({ length: count }, (_, i) => `https://picsum.photos/seed/${seeds[i % seeds.length]}/400/300`);
+}
 
 type Props = {
   navigation: NativeStackNavigationProp<ClientRootParamList, 'ProviderProfile'>;
@@ -136,10 +155,8 @@ export function ProviderProfileScreen({ navigation, route }: Props) {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Portfólio</Text>
           <View style={styles.portfolio}>
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <View key={i} style={styles.portfolioItem}>
-                <Text style={styles.portfolioPlaceholder}>📷</Text>
-              </View>
+            {getPortfolioImages(p.specialty, 6).map((uri, i) => (
+              <Image key={i} source={{ uri }} style={styles.portfolioItem} resizeMode="cover" />
             ))}
           </View>
         </View>
@@ -259,14 +276,9 @@ const styles = StyleSheet.create({
   portfolioItem: {
     width: '31%',
     aspectRatio: 1,
-    backgroundColor: Colors.surface,
     borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: Colors.border,
+    overflow: 'hidden',
   },
-  portfolioPlaceholder: { fontSize: 28 },
   actions: { paddingHorizontal: 20, paddingTop: 24, gap: 12 },
   primaryBtn: {
     backgroundColor: Colors.primary,

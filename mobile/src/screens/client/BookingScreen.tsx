@@ -9,7 +9,9 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
@@ -30,7 +32,30 @@ export function BookingScreen({ navigation, route }: Props) {
   const [address, setAddress] = useState('');
   const [date, setDate] = useState('');
   const [urgency, setUrgency] = useState<'NORMAL' | 'URGENT'>('NORMAL');
+  const [photos, setPhotos] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+
+  const handlePickPhotos = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permissão necessária', 'Permita o acesso à galeria para adicionar fotos.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true,
+      quality: 0.8,
+      selectionLimit: 5,
+    });
+    if (!result.canceled) {
+      const uris = result.assets.map((a) => a.uri);
+      setPhotos((prev) => [...prev, ...uris].slice(0, 5));
+    }
+  };
+
+  const handleRemovePhoto = (uri: string) => {
+    setPhotos((prev) => prev.filter((p) => p !== uri));
+  };
 
   const handleSubmit = async () => {
     if (!serviceType || !description || !address) {
@@ -124,11 +149,30 @@ export function BookingScreen({ navigation, route }: Props) {
             </View>
 
             <Text style={styles.label}>Fotos (opcional)</Text>
-            <TouchableOpacity style={styles.uploadArea}>
-              <Ionicons name="camera-outline" size={32} color={Colors.textMuted} />
-              <Text style={styles.uploadText}>Toque para adicionar fotos</Text>
-              <Text style={styles.uploadSubtext}>JPG, PNG até 10MB cada</Text>
-            </TouchableOpacity>
+            {photos.length > 0 && (
+              <View style={styles.photosRow}>
+                {photos.map((uri) => (
+                  <TouchableOpacity key={uri} onPress={() => handleRemovePhoto(uri)} style={styles.photoWrapper}>
+                    <Image source={{ uri }} style={styles.photoThumb} />
+                    <View style={styles.photoRemove}>
+                      <Ionicons name="close" size={12} color="#fff" />
+                    </View>
+                  </TouchableOpacity>
+                ))}
+                {photos.length < 5 && (
+                  <TouchableOpacity style={styles.photoAdd} onPress={handlePickPhotos}>
+                    <Ionicons name="add" size={28} color={Colors.textMuted} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+            {photos.length === 0 && (
+              <TouchableOpacity style={styles.uploadArea} onPress={handlePickPhotos}>
+                <Ionicons name="camera-outline" size={32} color={Colors.textMuted} />
+                <Text style={styles.uploadText}>Toque para adicionar fotos</Text>
+                <Text style={styles.uploadSubtext}>Até 5 fotos · JPG, PNG</Text>
+              </TouchableOpacity>
+            )}
 
             <TouchableOpacity
               style={[styles.primaryBtn, loading && styles.btnDisabled]}
@@ -201,6 +245,22 @@ const styles = StyleSheet.create({
   },
   uploadText: { color: Colors.textMuted, fontSize: 14 },
   uploadSubtext: { color: Colors.textMuted, fontSize: 12 },
+  photosRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
+  photoWrapper: { position: 'relative' },
+  photoThumb: { width: 80, height: 80, borderRadius: 10 },
+  photoRemove: {
+    position: 'absolute', top: 4, right: 4,
+    width: 20, height: 20, borderRadius: 10,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  photoAdd: {
+    width: 80, height: 80, borderRadius: 10,
+    backgroundColor: Colors.surface,
+    borderWidth: 1, borderColor: Colors.border,
+    borderStyle: 'dashed',
+    alignItems: 'center', justifyContent: 'center',
+  },
   primaryBtn: {
     backgroundColor: Colors.primary,
     height: 52,

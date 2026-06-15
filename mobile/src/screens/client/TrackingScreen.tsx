@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Linking } from 'react-native';
 import { Colors } from '../../constants/colors';
 import { requestService } from '../../services/request.service';
 import { ServiceRequest } from '../../types/models';
@@ -129,10 +130,24 @@ export function TrackingScreen({ navigation, route }: Props) {
             </View>
           )}
 
-          <View style={styles.mapPlaceholder}>
+          <TouchableOpacity
+            style={styles.mapPlaceholder}
+            onPress={() => {
+              const addr = request?.address ?? '';
+              const encoded = encodeURIComponent(addr);
+              Linking.openURL(`maps://?q=${encoded}`).catch(() =>
+                Linking.openURL(`https://maps.google.com/?q=${encoded}`)
+              );
+            }}
+            activeOpacity={0.85}
+          >
             <Text style={styles.mapIcon}>🗺️</Text>
-            <Text style={styles.mapText}>Mapa em tempo real</Text>
-          </View>
+            <Text style={styles.mapText}>{request?.address ?? 'Endereço do serviço'}</Text>
+            <View style={styles.mapOpenBtn}>
+              <Ionicons name="navigate" size={14} color={Colors.primary} />
+              <Text style={styles.mapOpenText}>Abrir no Mapa</Text>
+            </View>
+          </TouchableOpacity>
 
           {request?.status === 'IN_PROGRESS' && (
             <View style={styles.statusCard}>
@@ -260,7 +275,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   mapIcon: { fontSize: 40 },
-  mapText: { color: Colors.textMuted, fontSize: 14 },
+  mapText: { color: Colors.textMuted, fontSize: 13, textAlign: 'center', paddingHorizontal: 16 },
+  mapOpenBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  mapOpenText: { color: Colors.primary, fontSize: 13, fontWeight: '600' },
   statusCard: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -9,6 +9,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Linking,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -27,6 +29,22 @@ type Props = {
 export function ChatScreen({ navigation, route }: Props) {
   const { requestId, providerName } = route.params;
   const user = useAuthStore((s) => s.user);
+
+  const handleCall = () => {
+    Alert.alert(
+      `Ligar para ${providerName}`,
+      'Isso vai abrir o discador do seu celular.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Ligar',
+          onPress: () => Linking.openURL('tel:+5511999990000').catch(() =>
+            Alert.alert('Erro', 'Não foi possível iniciar a ligação.')
+          ),
+        },
+      ]
+    );
+  };
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -93,7 +111,7 @@ export function ChatScreen({ navigation, route }: Props) {
                 <Text style={styles.headerName}>{providerName}</Text>
               </View>
             </View>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={handleCall}>
               <Ionicons name="call-outline" size={22} color={Colors.white} />
             </TouchableOpacity>
           </View>

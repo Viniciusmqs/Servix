@@ -1,300 +1,184 @@
 # Servix
 
-Plataforma completa para contratação e gerenciamento de serviços, composta por um backend em Java com Spring Boot e um aplicativo mobile desenvolvido com React Native + Expo.
-
-A aplicação conecta clientes e prestadores de serviço, permitindo cadastro, autenticação, criação de solicitações, envio de propostas, avaliações, favoritos e chat em tempo real.
+Marketplace mobile que conecta clientes que precisam de serviços domésticos a prestadores de serviço qualificados. Rápido, seguro e transparente.
 
 ---
 
-# Tecnologias Utilizadas
+## 👥 Integrantes
 
-## Backend
-
-* Java 21+
-* Spring Boot
-* Spring Security
-* JWT Authentication
-* WebSocket
-* Maven
-* Flyway
-* PostgreSQL
-* Docker
-* Docker Compose
-
-## Mobile
-
-* React Native
-* Expo
-* TypeScript
-* React Navigation
-* Zustand
-* Axios
+| Nome | Matrícula | Atribuições |
+|------|-----------|-------------|
+| Vinícius Marques | UC22200344 | Backend (Spring Boot, API REST, JWT, MercadoPago), banco de dados, Docker, arquitetura geral |
+| Lucas Teles | UC22200482 | Frontend mobile (React Native + Expo), UI/UX, navegação, integração com API |
 
 ---
 
-# Estrutura do Projeto
+## 📱 Sobre o App
+
+O **Servix** é um marketplace de dupla-face:
+- **Cliente**: cria solicitações de serviço com fotos, acompanha em tempo real, paga via MercadoPago e avalia
+- **Prestador**: recebe pedidos do marketplace, aceita, executa, acompanha agenda e saca ganhos
+
+**Categorias**: Elétrica, Hidráulica, Limpeza, Pintura, TI, Jardinagem, Montagem, Segurança, Reformas, Outros
+
+---
+
+## 🛠️ Stack
+
+| Camada | Tecnologia |
+|--------|-----------|
+| Mobile | React Native + Expo 54, TypeScript |
+| Backend | Spring Boot 3.2.5, Java 21 |
+| Banco | PostgreSQL 16 |
+| Cache | Redis 7 |
+| Auth | Spring Security + JWT |
+| Pagamento | MercadoPago SDK Java |
+| Infra | Docker + Docker Compose |
+
+---
+
+## ✅ Pré-requisitos
+
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) instalado e rodando
+- [Node.js 20+](https://nodejs.org/)
+- [Expo Go](https://expo.dev/go) instalado no celular (iOS ou Android)
+
+---
+
+## 🚀 Como Executar
+
+### 1. Clone o repositório
 
 ```bash
-Servix/
-├── backend/          # API Spring Boot
-├── mobile/           # Aplicativo React Native
-├── docker-compose.yml
-└── seed.sh
+git clone https://github.com/Viniciusmqs/Servix.git
+cd Servix
+git checkout entrega-final
 ```
 
----
-
-# Funcionalidades
-
-## Autenticação
-
-* Cadastro de usuários
-* Login com JWT
-* Refresh Token
-* Controle de permissões por perfil
-
-## Cliente
-
-* Solicitação de serviços
-* Favoritar prestadores
-* Visualizar propostas
-* Sistema de chat
-* Histórico de solicitações
-* Avaliação de prestadores
-
-## Prestador
-
-* Cadastro de perfil profissional
-* Atualização de disponibilidade
-* Recebimento de propostas
-* Sistema de avaliações
-* Chat em tempo real
-
-## Sistema
-
-* WebSocket para mensagens em tempo real
-* Migrações automáticas com Flyway
-* API RESTful
-* Tratamento global de exceções
-* Arquitetura modularizada
-
----
-
-# Arquitetura Backend
-
-O backend segue arquitetura baseada em camadas:
+### 2. Suba o backend (API + Banco + Cache)
 
 ```bash
-controller/   # Endpoints REST
-service/      # Regras de negócio
-repository/   # Acesso ao banco de dados
-entity/       # Entidades JPA
-dto/          # Objetos de transferência
-security/     # JWT e autenticação
-exception/    # Tratamento de erros
+docker compose up -d
 ```
 
----
+> Aguarde ~30 segundos para todos os containers iniciarem.
 
-# Banco de Dados
+Verifique se está rodando:
+```bash
+docker compose ps
+```
 
-As migrações do banco são gerenciadas pelo Flyway.
+Os três containers devem estar `running`:
+- `servix-postgres` — PostgreSQL na porta **5433**
+- `servix-redis` — Redis na porta **6379**
+- `servix-backend` — API Spring Boot na porta **8080**
 
-Arquivos localizados em:
+### 3. Popule o banco com dados iniciais (seed)
 
 ```bash
-backend/src/main/resources/db/migration
+docker exec -i servix-postgres psql -U servix -d servix < seed.sql
 ```
 
-Principais entidades:
+> Isso cria categorias, usuários de teste e solicitações de exemplo.
 
-* User
-* Provider
-* ServiceRequest
-* Proposal
-* Review
-* Favorite
-* ChatMessage
-* RefreshToken
-
----
-
-# Como Executar o Projeto
-
-## Pré-requisitos
-
-* Java 21+
-* Node.js 18+
-* Docker
-* Docker Compose
-* Expo CLI
-
----
-
-## Executando com Docker
-
-Na raiz do projeto:
-
-```bash
-docker-compose up --build
-```
-
----
-
-# Configuração do Backend
-
-## 1. Acesse a pasta backend
-
-```bash
-cd backend
-```
-
-## 2. Configure as variáveis de ambiente
-
-Copie o arquivo:
-
-```bash
-.env.example
-```
-
-E configure as variáveis necessárias.
-
-## 3. Execute a aplicação
-
-```bash
-./mvnw spring-boot:run
-```
-
-Ou:
-
-```bash
-mvn spring-boot:run
-```
-
----
-
-# Configuração do Mobile
-
-## 1. Acesse a pasta mobile
+### 4. Instale as dependências do app mobile
 
 ```bash
 cd mobile
-```
-
-## 2. Instale as dependências
-
-```bash
 npm install
 ```
 
-## 3. Execute o projeto
+### 5. Configure o IP do backend no app
+
+Abra o arquivo `mobile/src/services/api.ts` e atualize o `BASE_URL` com o IP da sua máquina na rede local:
+
+```typescript
+// Troque pelo IP do seu computador (veja com: ifconfig | grep 192)
+const BASE_URL = 'http://SEU_IP_AQUI:8080/api';
+```
+
+Para descobrir seu IP:
+```bash
+# macOS/Linux
+ifconfig | grep "inet " | grep -v 127.0.0.1
+
+# Windows
+ipconfig
+```
+
+### 6. Rode o app
 
 ```bash
+cd mobile
 npx expo start
+```
+
+Escaneie o QR Code com o **Expo Go** no celular.
+
+---
+
+## 👤 Usuários de Teste
+
+| Perfil | E-mail | Senha |
+|--------|--------|-------|
+| Cliente | lucas.oliveira@gmail.com | Servix@123 |
+| Prestador | marco@servix.com | Servix@123 |
+
+---
+
+## 📂 Estrutura do Projeto
+
+```
+Servix/
+├── docker-compose.yml       # Orquestração dos containers
+├── seed.sql                 # Dados iniciais (categorias, usuários)
+├── README.md
+└── mobile/                  # App React Native
+    ├── app.json             # Config Expo
+    ├── src/
+    │   ├── screens/         # Telas (client/, provider/, auth/)
+    │   ├── services/        # Chamadas à API REST
+    │   ├── navigation/      # Stack e Tab navigators
+    │   ├── store/           # Estado global (Zustand)
+    │   ├── types/           # Tipos TypeScript
+    │   └── constants/       # Cores, constantes
+    └── assets/              # Ícones e imagens
 ```
 
 ---
 
-# Endpoints Principais
+## 🔌 Endpoints principais da API
 
-## Autenticação
-
-* `POST /auth/register`
-* `POST /auth/login`
-* `POST /auth/refresh`
-
-## Prestadores
-
-* `GET /providers`
-* `POST /providers/profile`
-
-## Solicitações
-
-* `POST /requests`
-* `GET /requests`
-* `PATCH /requests/status`
-
-## Favoritos
-
-* `POST /favorites`
-* `GET /favorites`
-
-## Avaliações
-
-* `POST /reviews`
-* `GET /reviews`
-
-## Chat
-
-* WebSocket para comunicação em tempo real
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| POST | /api/auth/register | Cadastro |
+| POST | /api/auth/login | Login (retorna JWT) |
+| GET | /api/requests | Marketplace de pedidos |
+| POST | /api/requests | Criar solicitação |
+| PUT | /api/requests/{id}/accept | Aceitar pedido |
+| PUT | /api/requests/{id}/complete | Concluir pedido |
+| GET | /api/chat/requests/{id}/messages | Mensagens do chat |
+| POST | /api/chat/requests/{id}/messages | Enviar mensagem |
+| POST | /api/payments/preference | Criar preferência MercadoPago |
+| GET | /api/providers | Lista prestadores |
+| POST | /api/reviews | Avaliar prestador |
 
 ---
 
-# Segurança
+## 🐛 Problemas comuns
 
-A aplicação utiliza:
+**Porta 8080 em uso:**
+```bash
+lsof -ti :8080 | xargs kill -9
+docker compose up -d
+```
 
-* Spring Security
-* JWT Authentication
-* Controle de acesso por roles
-* Refresh Tokens
-* Interceptadores WebSocket autenticados
+**App não conecta na API:**
+- Verifique se o celular e o computador estão na mesma rede Wi-Fi
+- Confirme o IP correto em `mobile/src/services/api.ts`
 
----
-
-# Padrões Utilizados
-
-* REST API
-* DTO Pattern
-* Repository Pattern
-* Service Layer
-* Exception Handler Global
-* Clean Code
-* Modularização por domínio
-
----
-
-# Telas do Aplicativo
-
-## Cliente
-
-* Home
-* Perfil do prestador
-* Solicitações
-* Favoritos
-* Pagamentos
-* Chat
-* Notificações
-
-## Prestador
-
-* Dashboard
-* Cadastro profissional
-* Propostas
-* Avaliações recebidas
-* Ganhos
-* Chat
-
----
-
-# Melhorias Futuras
-
-* Integração com gateway de pagamento
-* Upload de imagens
-* Notificações push
-* Geolocalização
-* Dashboard administrativo
-* Sistema de agendamento avançado
-* Deploy em nuvem AWS
-
----
-
-# Desenvolvedores
-
-Projeto desenvolvido para fins acadêmicos e prática de desenvolvimento full stack mobile e backend.
-
----
-
-# Licença
-
-Este projeto possui finalidade educacional.
+**Banco não inicializou:**
+```bash
+docker compose down -v
+docker compose up -d
+```

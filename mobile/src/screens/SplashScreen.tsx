@@ -1,11 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Animated,
-  ActivityIndicator,
-} from 'react-native';
+import { View, Text, StyleSheet, Animated, Image } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Colors } from '../constants/colors';
 import { AuthStackParamList } from '../navigation/AuthNavigator';
@@ -15,38 +9,44 @@ type Props = {
 };
 
 export function SplashScreen({ navigation }: Props) {
-  const progress = useRef(new Animated.Value(0)).current;
+  const logoScale   = useRef(new Animated.Value(0.7)).current;
+  const logoOpacity = useRef(new Animated.Value(0)).current;
+  const textOpacity = useRef(new Animated.Value(0)).current;
+  const progress    = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.timing(progress, {
-      toValue: 1,
-      duration: 2000,
-      useNativeDriver: false,
-    }).start();
+    Animated.sequence([
+      Animated.parallel([
+        Animated.spring(logoScale, { toValue: 1, tension: 60, friction: 8, useNativeDriver: true }),
+        Animated.timing(logoOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+      ]),
+      Animated.timing(textOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
+      Animated.timing(progress, { toValue: 1, duration: 1400, useNativeDriver: false }),
+    ]).start();
 
-    const timer = setTimeout(() => {
-      navigation.replace('Onboarding1');
-    }, 2500);
-
+    const timer = setTimeout(() => navigation.replace('Onboarding1'), 2600);
     return () => clearTimeout(timer);
   }, []);
 
-  const width = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0%', '100%'],
-  });
+  const barWidth = progress.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
 
   return (
     <View style={styles.container}>
-      <View style={styles.logoContainer}>
-        <View style={styles.logoIcon}>
-          <Text style={styles.logoIconText}>S</Text>
-        </View>
-        <Text style={styles.logoText}>Servix</Text>
-      </View>
-      <ActivityIndicator color={Colors.secondary} size="small" style={styles.indicator} />
+      <Animated.View style={{ opacity: logoOpacity, transform: [{ scale: logoScale }], marginBottom: 28 }}>
+        <Image
+          source={require('../../assets/icon.png')}
+          style={styles.logo}
+          resizeMode="contain"
+        />
+      </Animated.View>
+
+      <Animated.View style={[styles.textWrap, { opacity: textOpacity }]}>
+        <Text style={styles.name}>SERVIX</Text>
+        <Text style={styles.tagline}>Conecte. Contrate. Confie.</Text>
+      </Animated.View>
+
       <View style={styles.progressContainer}>
-        <Animated.View style={[styles.progressBar, { width }]} />
+        <Animated.View style={[styles.progressBar, { width: barWidth }]} />
       </View>
     </View>
   );
@@ -59,45 +59,40 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logoContainer: {
+  logo: {
+    width: 120,
+    height: 120,
+    borderRadius: 26,
+  },
+  textWrap: {
     alignItems: 'center',
-    gap: 12,
+    gap: 6,
   },
-  logoIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 20,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logoIconText: {
-    fontSize: 40,
+  name: {
+    fontSize: 36,
     fontWeight: '800',
-    color: Colors.white,
+    color: '#FFFFFF',
+    letterSpacing: 6,
   },
-  logoText: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: Colors.white,
-    letterSpacing: 2,
-  },
-  indicator: {
-    marginTop: 40,
+  tagline: {
+    fontSize: 14,
+    color: '#00C896',
+    fontWeight: '500',
+    letterSpacing: 1,
   },
   progressContainer: {
     position: 'absolute',
     bottom: 60,
-    left: 40,
-    right: 40,
-    height: 4,
-    backgroundColor: Colors.surface,
+    left: 48,
+    right: 48,
+    height: 3,
+    backgroundColor: '#1E3A5F',
     borderRadius: 2,
     overflow: 'hidden',
   },
   progressBar: {
     height: '100%',
-    backgroundColor: Colors.secondary,
+    backgroundColor: '#00C896',
     borderRadius: 2,
   },
 });
